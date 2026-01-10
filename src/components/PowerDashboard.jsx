@@ -9,7 +9,8 @@ const PowerDashboard = () => {
   const [selectedFeeder, setSelectedFeeder] = useState(null);
   const [feederHistory, setFeederHistory] = useState(null);
 
-  const API_BASE = 'http://31.220.87.246/v1/metrics';
+  const API_BASE = 'http://31.220.87.246/api/v1/metrics';
+
 
   // Mock data for demo
   const MOCK_DATA = {
@@ -826,7 +827,7 @@ const FeedersView = ({ data, onSelectFeeder, selectedFeeder, feederHistory, fetc
   );
 };
 
-const AnalyticsView = ({ data, zoneData }) => {
+const AnalyticsView = ({ zoneData }) => {
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold mb-4 text-gray-900">Analytics & Insights</h2>

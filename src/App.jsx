@@ -1,5 +1,5 @@
 
-import PowerDashboard from "./PowerDashboard"
+import PowerDashboard from "./components/PowerDashboard"
 
 function App() {
   return (
