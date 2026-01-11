@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Activity, Zap, AlertTriangle, TrendingUp, Power, MapPin } from 'lucide-react';
+import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react'
+import Logo from "../assets/Onction-logo.png";
+
 
 const PowerDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -293,13 +296,23 @@ const PowerDashboard = () => {
       <header className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Zap className="w-8 h-8 text-blue-600" />
+            <img src={Logo} className="w-10"/>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Energy Monitoring Dashboard</h1>
               <p className="text-sm text-gray-600">Real-time Grid Analytics</p>
             </div>
           </div>
+
+
           <div className="flex items-center gap-2 text-sm">
+            <div>
+                <SignedOut>
+                    <SignInButton />
+                </SignedOut>
+                <SignedIn>
+                    <UserButton />
+                </SignedIn>
+            </div>
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
             <span className="text-gray-600">Last updated: {dashboardData?.snapshot_time}</span>
           </div>
