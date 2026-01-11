@@ -108,9 +108,9 @@ export const Login = () => {
   };
 
   return (
-    <div className="flex-1 min-h-screen justify-center place-items-center bg-background px-4">
+    <div className="flex  min-h-screen items-center justify-center-safe bg-background px-4">
 
-    <form className="w-lg flex flex-col gap-4 flex-1" onSubmit={handleSubmit}>
+    <form className="w-lg flex flex-col gap-4" onSubmit={handleSubmit}>
       <div className="flex justify-center">
         <img src={Logo} alt="Logo" />
       </div>
