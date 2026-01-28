@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Activity, Zap, AlertTriangle, TrendingUp, Power, MapPin } from 'lucide-react';
+import { Activity, Zap, AlertTriangle, TrendingUp, MapPin, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react'
-import Logo from "../assets/Onction-logo.png";
+import Logo from "../assets/image/Onction-logo.png";
 
 
 const PowerDashboard = () => {
@@ -322,7 +322,7 @@ const PowerDashboard = () => {
       {/* Navigation */}
       <nav className="bg-white border-b border-gray-200 px-6">
         <div className="flex gap-6">
-          {['overview', 'zones', 'feeders', 'analytics'].map(tab => (
+          {['overview', 'zones', 'feeders', 'reports', 'analytics'].map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -494,6 +494,10 @@ const PowerDashboard = () => {
           />
         )}
 
+        {activeTab === 'reports' && (
+          <ReportsView data={dashboardData} />
+        )}
+
         {activeTab === 'analytics' && (
           <AnalyticsView data={dashboardData} zoneData={zoneData} />
         )}
@@ -588,25 +592,187 @@ const ZonesView = ({ data }) => {
 const FeedersView = ({ data, onSelectFeeder, selectedFeeder, feederHistory, fetchFeederHistory }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [viewMode, setViewMode] = useState('all'); // 'all', 'online', 'offline'
+
+  
+  // Set default dates when modal opens
+  // useEffect(() => {
+  //   if (selectedFeeder) {
+  //     const today = new Date();
+  //     const lastWeek = new Date(today);
+  //     lastWeek.setDate(today.getDate() - 7);
+      
+  //     setToDate(today.toISOString().split('T')[0]);
+  //     setFromDate(lastWeek.toISOString().split('T')[0]);
+  //   }
+  // }, [selectedFeeder]);
+
+  // Calculate default dates
+  const today = new Date();
+  const lastWeek = new Date(today);
+  lastWeek.setDate(today.getDate() - 7);
+
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
-
-  // Set default dates when modal opens
-  useEffect(() => {
-    if (selectedFeeder) {
-      const today = new Date();
-      const lastWeek = new Date(today);
-      lastWeek.setDate(today.getDate() - 7);
-      
-      setToDate(today.toISOString().split('T')[0]);
-      setFromDate(lastWeek.toISOString().split('T')[0]);
-    }
-  }, [selectedFeeder]);
 
   const handleDateRangeChange = () => {
     if (selectedFeeder && fromDate && toDate) {
       fetchFeederHistory(selectedFeeder.feeder_id, fromDate, toDate);
     }
+  };
+
+
+  // Handel export to CSV, pdf and Word
+
+  const exportToCSV = () => {
+    if (!selectedFeeder || !feederHistory) return;
+
+    const headers = ['Timestamp', 'Consumption (kWh)', 'Uptime (hours)', 'Status', 'Station', 'Zone'];
+    const rows = feederHistory.map(record => [
+      new Date(record.snapshot_time).toLocaleString(),
+      record.consumption_kwh,
+      record.uptime_hours,
+      record.status === 1 ? 'ONLINE' : 'OFFLINE',
+      record.station,
+      record.zone
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${selectedFeeder.name}_${fromDate}_to_${toDate}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const exportToPDF = () => {
+    if (!selectedFeeder || !feederHistory) return;
+
+    const content = `
+      FEEDER CONSUMPTION REPORT
+      
+      Feeder Name: ${selectedFeeder.name}
+      Zone: ${selectedFeeder.zone}
+      Station: ${selectedFeeder.station}
+      Voltage Class: ${selectedFeeder.voltage_class}
+      Trading Point: ${selectedFeeder.trading_point}
+      
+      Report Period: ${fromDate} to ${toDate}
+      
+      SUMMARY STATISTICS
+      Total Consumption: ${totalConsumption.toLocaleString()} kWh
+      Average Uptime: ${avgUptime} hours
+      Total Data Points: ${feederHistory.length}
+      
+      DETAILED RECORDS
+      
+      ${feederHistory.map((record, idx) => `
+      ${idx + 1}. ${new Date(record.snapshot_time).toLocaleString()}
+         Consumption: ${record.consumption_kwh.toLocaleString()} kWh
+         Uptime: ${record.uptime_hours} hours
+         Status: ${record.status === 1 ? 'ONLINE' : 'OFFLINE'}
+      `).join('\n')}
+      
+      ---
+      Report Generated: ${new Date().toLocaleString()}
+    `;
+
+    const blob = new Blob([content], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${selectedFeeder.name}_report_${fromDate}_to_${toDate}.txt`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const exportToWord = () => {
+    if (!selectedFeeder || !feederHistory) return;
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Feeder Report</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 40px; }
+          h1 { color: #2563eb; border-bottom: 2px solid #2563eb; padding-bottom: 10px; }
+          h2 { color: #1f2937; margin-top: 30px; }
+          .info-section { background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0; }
+          .info-row { display: flex; margin: 8px 0; }
+          .info-label { font-weight: bold; width: 150px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th, td { border: 1px solid #d1d5db; padding: 12px; text-align: left; }
+          th { background-color: #2563eb; color: white; }
+          tr:nth-child(even) { background-color: #f9fafb; }
+          .summary-box { background: #dbeafe; padding: 15px; border-radius: 8px; margin: 10px 0; }
+          .footer { margin-top: 40px; text-align: center; color: #6b7280; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <h1>Power Distribution Feeder Report</h1>
+        
+        <div class="info-section">
+          <h2>Feeder Information</h2>
+          <div class="info-row"><span class="info-label">Feeder Name:</span><span>${selectedFeeder.name}</span></div>
+          <div class="info-row"><span class="info-label">Zone:</span><span>${selectedFeeder.zone}</span></div>
+          <div class="info-row"><span class="info-label">Station:</span><span>${selectedFeeder.station}</span></div>
+          <div class="info-row"><span class="info-label">Voltage Class:</span><span>${selectedFeeder.voltage_class}</span></div>
+          <div class="info-row"><span class="info-label">Trading Point:</span><span>${selectedFeeder.trading_point}</span></div>
+          <div class="info-row"><span class="info-label">Report Period:</span><span>${fromDate} to ${toDate}</span></div>
+        </div>
+        
+        <h2>Summary Statistics</h2>
+        <div class="summary-box">
+          <div class="info-row"><span class="info-label">Total Consumption:</span><span>${totalConsumption.toLocaleString()} kWh</span></div>
+          <div class="info-row"><span class="info-label">Average Uptime:</span><span>${avgUptime} hours</span></div>
+          <div class="info-row"><span class="info-label">Data Points:</span><span>${feederHistory.length} snapshots</span></div>
+        </div>
+        
+        <h2>Detailed Records</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Consumption (kWh)</th>
+              <th>Uptime (hours)</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${feederHistory.map(record => `
+              <tr>
+                <td>${new Date(record.snapshot_time).toLocaleString()}</td>
+                <td>${record.consumption_kwh.toLocaleString()}</td>
+                <td>${record.uptime_hours}</td>
+                <td>${record.status === 1 ? 'ONLINE' : 'OFFLINE'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        
+        <div class="footer">
+          Report Generated: ${new Date().toLocaleString()}<br>
+          Power Distribution Monitoring System
+        </div>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([htmlContent], { type: 'application/vnd.ms-word' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${selectedFeeder.name}_report_${fromDate}_to_${toDate}.doc`;
+    a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const allFeeders = [];
@@ -629,6 +795,16 @@ const FeedersView = ({ data, onSelectFeeder, selectedFeeder, feederHistory, fetc
       (filterStatus === 'inactive' && f.status === 0);
     return matchesSearch && matchesStatus;
   });
+
+
+  // Separate feeders by status
+  const onlineFeeders = filteredFeeders.filter(f => f.status === 1);
+  const offlineFeeders = filteredFeeders.filter(f => f.status === 0);
+
+  // Determine which feeders to display based on view mode
+  const displayFeeders = viewMode === 'online' ? onlineFeeders : 
+                         viewMode === 'offline' ? offlineFeeders : 
+                         filteredFeeders;
 
   // Calculate total consumption from history
   const totalConsumption = feederHistory 
@@ -660,8 +836,80 @@ const FeedersView = ({ data, onSelectFeeder, selectedFeeder, feederHistory, fetc
         </select>
       </div>
 
+      {/* <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {displayFeeders.map((feeder, idx) => (
+          <div
+            key={idx}
+            onClick={() => onSelectFeeder(feeder)}
+            className="bg-white border border-gray-200 rounded-lg p-4 hover:border-blue-500 cursor-pointer transition-colors shadow-sm"
+          >
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className={`w-4 h-4 rounded-full ${feeder.status === 1 ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">{feeder.name}</h3>
+                  <p className="text-xs text-gray-600">{feeder.zone} - {feeder.trading_point}</p>
+                </div>
+              </div>
+              <span className={`px-2 py-1 rounded text-xs ${feeder.status === 1 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                {feeder.status === 1 ? 'ONLINE' : 'OFFLINE'}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-4 text-sm">
+              <div>
+                <p className="text-gray-600">Consumption</p>
+                <p className="font-semibold text-gray-900">{feeder.consumption_kwh} kWh</p>
+              </div>
+              <div>
+                <p className="text-gray-600">Uptime</p>
+                <p className="font-semibold text-gray-900">{feeder.uptime_hours}h</p>
+              </div>
+              <div>
+                <p className="text-gray-600">Voltage</p>
+                <p className="font-semibold text-gray-900">{feeder.voltage_class}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div> */}
+
+
+      {/* Status View Toggle */}
+      <div className="flex gap-3 mb-6">
+        <button
+          onClick={() => setViewMode('all')}
+          className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors ${
+            viewMode === 'all'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          All Feeders ({filteredFeeders.length})
+        </button>
+        <button
+          onClick={() => setViewMode('online')}
+          className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors ${
+            viewMode === 'online'
+              ? 'bg-green-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Online ({onlineFeeders.length})
+        </button>
+        <button
+          onClick={() => setViewMode('offline')}
+          className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors ${
+            viewMode === 'offline'
+              ? 'bg-red-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Offline ({offlineFeeders.length})
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {filteredFeeders.map((feeder, idx) => (
+        {displayFeeders.map((feeder, idx) => (
           <div
             key={idx}
             onClick={() => onSelectFeeder(feeder)}
@@ -697,6 +945,7 @@ const FeedersView = ({ data, onSelectFeeder, selectedFeeder, feederHistory, fetc
         ))}
       </div>
 
+
       {selectedFeeder && feederHistory && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-6 z-50">
           <div className="bg-white rounded-lg p-6 max-w-5xl w-full max-h-[90vh] overflow-y-auto shadow-xl">
@@ -705,16 +954,45 @@ const FeedersView = ({ data, onSelectFeeder, selectedFeeder, feederHistory, fetc
                 <h3 className="text-2xl font-bold text-gray-900">{selectedFeeder.name}</h3>
                 <p className="text-sm text-gray-600">{selectedFeeder.zone} - {selectedFeeder.station}</p>
               </div>
-              <button
-                onClick={() => {
-                  onSelectFeeder(null);
-                  setFromDate('');
-                  setToDate('');
-                }}
-                className="text-gray-600 hover:text-gray-900 text-2xl font-bold"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-3">
+                {/* Export Buttons */}
+                <div className="flex gap-2 mr-4">
+                  <button
+                    onClick={exportToCSV}
+                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-medium transition-colors"
+                    title="Export to CSV"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                    CSV
+                  </button>
+                  <button
+                    onClick={exportToPDF}
+                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm font-medium transition-colors"
+                    title="Export to PDF (Text)"
+                  >
+                    <FileText className="w-4 h-4" />
+                    PDF
+                  </button>
+                  <button
+                    onClick={exportToWord}
+                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-medium transition-colors"
+                    title="Export to Word"
+                  >
+                    <Download className="w-4 h-4" />
+                    Word
+                  </button>
+                </div>
+                <button
+                  onClick={() => {
+                    onSelectFeeder(null);
+                    setFromDate('');
+                    setToDate('');
+                  }}
+                  className="text-gray-600 hover:text-gray-900 text-2xl font-bold"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             {/* Date Range Selector */}
@@ -880,6 +1158,450 @@ const AnalyticsView = ({ zoneData }) => {
             ))}
           </div>
         </div>
+      </div>
+    </div>
+  );
+};
+
+const ReportsView = ({ data }) => {
+  const [reportFromDate, setReportFromDate] = useState('');
+  const [reportToDate, setReportToDate] = useState('');
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [showAllOnline, setShowAllOnline] = useState(false);
+
+  // Set default dates
+  React.useEffect(() => {
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    
+    setReportToDate(today.toISOString().split('T')[0]);
+    setReportFromDate(yesterday.toISOString().split('T')[0]);
+  }, []);
+
+  // Get all feeders
+  const allFeeders = [];
+  data.Zone.forEach(zone => {
+    zone.trading_points.forEach(tp => {
+      tp.feeders.forEach(f => {
+        allFeeders.push({
+          ...f,
+          zone: zone.zone,
+          trading_point: tp.name
+        });
+      });
+    });
+  });
+
+  const onlineFeeders = allFeeders.filter(f => f.status === 1);
+  const offlineFeeders = allFeeders.filter(f => f.status === 0);
+
+  const generatePerformanceReport = () => {
+    setGeneratingReport(true);
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Daily Feeder Performance Report</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 40px; color: #1f2937; }
+          h1 { color: #2563eb; border-bottom: 3px solid #2563eb; padding-bottom: 15px; margin-bottom: 30px; }
+          h2 { color: #1f2937; margin-top: 40px; background: #f3f4f6; padding: 12px; border-left: 4px solid #2563eb; }
+          .report-header { background: #dbeafe; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
+          .report-info { display: flex; justify-content: space-between; margin: 10px 0; }
+          .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin: 20px 0; }
+          .summary-card { background: #f9fafb; border: 2px solid #e5e7eb; padding: 20px; border-radius: 8px; text-align: center; }
+          .summary-card h3 { margin: 0; color: #6b7280; font-size: 14px; font-weight: normal; }
+          .summary-card .value { font-size: 32px; font-weight: bold; color: #2563eb; margin: 10px 0; }
+          .summary-card .label { color: #9ca3af; font-size: 12px; }
+          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+          th, td { border: 1px solid #d1d5db; padding: 12px; text-align: left; font-size: 13px; }
+          th { background-color: #2563eb; color: white; font-weight: 600; }
+          tr:nth-child(even) { background-color: #f9fafb; }
+          .status-online { background: #d1fae5; color: #065f46; padding: 4px 8px; border-radius: 4px; font-weight: 600; }
+          .status-offline { background: #fee2e2; color: #991b1b; padding: 4px 8px; border-radius: 4px; font-weight: 600; }
+          .section-title { background: #1f2937; color: white; padding: 10px; margin-top: 30px; }
+          .footer { margin-top: 60px; text-align: center; color: #6b7280; font-size: 12px; border-top: 2px solid #e5e7eb; padding-top: 20px; }
+          .low-performance { background-color: #fef3c7 !important; }
+          .zone-section { margin: 30px 0; padding: 20px; background: #f9fafb; border-radius: 8px; }
+        </style>
+      </head>
+      <body>
+        <h1>⚡ Daily Feeder Performance Monitoring Report</h1>
+        
+        <div class="report-header">
+          <h3 style="margin-top: 0; color: #1f2937;">Report Information</h3>
+          <div class="report-info">
+            <span><strong>Report Period:</strong> ${reportFromDate} to ${reportToDate}</span>
+            <span><strong>Generated:</strong> ${new Date().toLocaleString()}</span>
+          </div>
+          <div class="report-info">
+            <span><strong>Total Feeders:</strong> ${allFeeders.length}</span>
+            <span><strong>System:</strong> Power Distribution Monitoring</span>
+          </div>
+        </div>
+
+        <div class="summary-grid">
+          <div class="summary-card">
+            <h3>Total Consumption</h3>
+            <div class="value">${allFeeders.reduce((sum, f) => sum + f.consumption_kwh, 0).toLocaleString()}</div>
+            <div class="label">kWh</div>
+          </div>
+          <div class="summary-card">
+            <h3>Online Feeders</h3>
+            <div class="value" style="color: #10b981;">${onlineFeeders.length}</div>
+            <div class="label">${((onlineFeeders.length / allFeeders.length) * 100).toFixed(1)}% operational</div>
+          </div>
+          <div class="summary-card">
+            <h3>Offline Feeders</h3>
+            <div class="value" style="color: #ef4444;">${offlineFeeders.length}</div>
+            <div class="label">${((offlineFeeders.length / allFeeders.length) * 100).toFixed(1)}% down</div>
+          </div>
+        </div>
+
+        <h2>📊 Performance Summary by Zone</h2>
+        ${data.Zone.map(zone => {
+          const zoneFeeders = [];
+          zone.trading_points.forEach(tp => {
+            tp.feeders.forEach(f => zoneFeeders.push({...f, trading_point: tp.name}));
+          });
+          const zoneConsumption = zoneFeeders.reduce((sum, f) => sum + f.consumption_kwh, 0);
+          const zoneAvgUptime = (zoneFeeders.reduce((sum, f) => sum + f.uptime_hours, 0) / zoneFeeders.length).toFixed(1);
+          const zoneOnline = zoneFeeders.filter(f => f.status === 1).length;
+
+          return `
+            <div class="zone-section">
+              <h3 style="margin-top: 0;">${zone.zone}</h3>
+              <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 15px;">
+                <div><strong>Total Feeders:</strong> ${zoneFeeders.length}</div>
+                <div><strong>Online:</strong> <span style="color: #10b981;">${zoneOnline}</span></div>
+                <div><strong>Consumption:</strong> ${zoneConsumption.toLocaleString()} kWh</div>
+                <div><strong>Avg Uptime:</strong> ${zoneAvgUptime}h</div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+
+        <h2>✅ Online Feeders (${onlineFeeders.length})</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Feeder Name</th>
+              <th>Zone</th>
+              <th>Trading Point</th>
+              <th>Consumption (kWh)</th>
+              <th>Uptime (hours)</th>
+              <th>Voltage Class</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${onlineFeeders.map(feeder => `
+              <tr ${feeder.uptime_hours < 2 ? 'class="low-performance"' : ''}>
+                <td><strong>${feeder.name}</strong></td>
+                <td>${feeder.zone}</td>
+                <td>${feeder.trading_point}</td>
+                <td><strong>${feeder.consumption_kwh.toLocaleString()}</strong></td>
+                <td>${feeder.uptime_hours}${feeder.uptime_hours < 2 ? ' ⚠️' : ''}</td>
+                <td>${feeder.voltage_class}</td>
+                <td><span class="status-online">ONLINE</span></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <h2>❌ Offline Feeders (${offlineFeeders.length})</h2>
+        ${offlineFeeders.length > 0 ? `
+          <table>
+            <thead>
+              <tr>
+                <th>Feeder Name</th>
+                <th>Zone</th>
+                <th>Trading Point</th>
+                <th>Last Consumption (kWh)</th>
+                <th>Voltage Class</th>
+                <th>Station</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${offlineFeeders.map(feeder => `
+                <tr>
+                  <td><strong>${feeder.name}</strong></td>
+                  <td>${feeder.zone}</td>
+                  <td>${feeder.trading_point}</td>
+                  <td>${feeder.consumption_kwh.toLocaleString()}</td>
+                  <td>${feeder.voltage_class}</td>
+                  <td>${feeder.station}</td>
+                  <td><span class="status-offline">OFFLINE</span></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : '<p style="padding: 20px; background: #d1fae5; border-radius: 8px;">✅ No offline feeders - All systems operational!</p>'}
+
+        <h2>⚠️ Performance Alerts</h2>
+        ${onlineFeeders.filter(f => f.uptime_hours < 2).length > 0 ? `
+          <table>
+            <thead>
+              <tr>
+                <th>Feeder Name</th>
+                <th>Zone</th>
+                <th>Uptime (hours)</th>
+                <th>Issue</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${onlineFeeders.filter(f => f.uptime_hours < 2).map(feeder => `
+                <tr class="low-performance">
+                  <td><strong>${feeder.name}</strong></td>
+                  <td>${feeder.zone}</td>
+                  <td>${feeder.uptime_hours}</td>
+                  <td>⚠️ Low uptime detected</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : '<p style="padding: 20px; background: #d1fae5; border-radius: 8px;">✅ No performance issues detected</p>'}
+
+        <div class="footer">
+          <strong>Power Distribution Monitoring System</strong><br>
+          Report Generated: ${new Date().toLocaleString()}<br>
+          Period: ${reportFromDate} to ${reportToDate}
+        </div>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([htmlContent], { type: 'application/vnd.ms-word' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Feeder_Performance_Report_${reportFromDate}_to_${reportToDate}.doc`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+
+    setTimeout(() => setGeneratingReport(false), 1000);
+  };
+
+  const generateCSVReport = () => {
+    const headers = ['Feeder Name', 'Zone', 'Trading Point', 'Station', 'Consumption (kWh)', 'Uptime (hours)', 'Voltage Class', 'Status'];
+    const rows = allFeeders.map(feeder => [
+      feeder.name,
+      feeder.zone,
+      feeder.trading_point,
+      feeder.station,
+      feeder.consumption_kwh,
+      feeder.uptime_hours,
+      feeder.voltage_class,
+      feeder.status === 1 ? 'ONLINE' : 'OFFLINE'
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `All_Feeders_Report_${reportFromDate}_to_${reportToDate}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const visibleFeeders = showAllOnline
+  ? onlineFeeders
+  : onlineFeeders.slice(0, 5);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Performance Reports</h2>
+          <p className="text-gray-600 mt-1">Generate comprehensive feeder performance reports</p>
+        </div>
+      </div>
+
+      {/* Report Configuration */}
+      <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Report Configuration</h3>
+        <div className="flex gap-4 items-end">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">From Date</label>
+            <input
+              type="date"
+              value={reportFromDate}
+              onChange={(e) => setReportFromDate(e.target.value)}
+              className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-900 focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">To Date</label>
+            <input
+              type="date"
+              value={reportToDate}
+              onChange={(e) => setReportToDate(e.target.value)}
+              className="w-full bg-white border border-gray-300 rounded px-3 py-2 text-gray-900 focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <button
+            onClick={generatePerformanceReport}
+            disabled={generatingReport}
+            className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-8 py-2 rounded font-medium transition-colors flex items-center gap-2"
+          >
+            {generatingReport ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Generating...
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4" />
+                Generate Word Report
+              </>
+            )}
+          </button>
+          <button
+            onClick={generateCSVReport}
+            className="bg-green-600 hover:bg-green-700 text-white px-8 py-2 rounded font-medium transition-colors flex items-center gap-2"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            Export CSV
+          </button>
+        </div>
+      </div>
+
+      {/* Current Status Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h4 className="text-sm text-gray-600 mb-2">Total Feeders</h4>
+          <p className="text-3xl font-bold text-gray-900">{allFeeders.length}</p>
+          <p className="text-sm text-gray-600 mt-1">All zones combined</p>
+        </div>
+        <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+          <h4 className="text-sm text-gray-600 mb-2">Online Feeders</h4>
+          <p className="text-3xl font-bold text-green-600">{onlineFeeders.length}</p>
+          <p className="text-sm text-gray-600 mt-1">{((onlineFeeders.length / allFeeders.length) * 100).toFixed(1)}% operational</p>
+        </div>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+          <h4 className="text-sm text-gray-600 mb-2">Offline Feeders</h4>
+          <p className="text-3xl font-bold text-red-600">{offlineFeeders.length}</p>
+          <p className="text-sm text-gray-600 mt-1">{((offlineFeeders.length / allFeeders.length) * 100).toFixed(1)}% down</p>
+        </div>
+      </div>
+
+      {/* Report Features */}
+      <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Report Includes:</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center shrink-0 mt-1">
+              <span className="text-blue-600 text-sm font-bold">✓</span>
+            </div>
+            <div>
+              <h4 className="font-semibold text-gray-900">Daily Performance Metrics</h4>
+              <p className="text-sm text-gray-600">Consumption and uptime data for each feeder</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center shrink-0 mt-1">
+              <span className="text-blue-600 text-sm font-bold">✓</span>
+            </div>
+            <div>
+              <h4 className="font-semibold text-gray-900">Zone-wise Breakdown</h4>
+              <p className="text-sm text-gray-600">Performance summary organized by zones</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center shrink-0 mt-1">
+              <span className="text-blue-600 text-sm font-bold">✓</span>
+            </div>
+            <div>
+              <h4 className="font-semibold text-gray-900">Online/Offline Status</h4>
+              <p className="text-sm text-gray-600">Clear separation of operational and down feeders</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center shrink-0 mt-1">
+              <span className="text-blue-600 text-sm font-bold">✓</span>
+            </div>
+            <div>
+              <h4 className="font-semibold text-gray-900">Performance Alerts</h4>
+              <p className="text-sm text-gray-600">Highlights feeders with low uptime or issues</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Preview Section */}
+      <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Current Status Preview</h3>
+        
+        <div className="mb-6">
+          <h4 className="font-semibold text-green-600 mb-3">✅ Online Feeders ({onlineFeeders.length})</h4>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Feeder</th>
+                  <th className="text-left py-2 px-3 font-semibold text-gray-900">Zone</th>
+                  <th className="text-right py-2 px-3 font-semibold text-gray-900">Consumption</th>
+                  <th className="text-right py-2 px-3 font-semibold text-gray-900">Uptime</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {visibleFeeders.map((feeder, idx) => (
+                  <tr key={idx} className="hover:bg-gray-50">
+                    <td className="py-2 px-3 text-gray-900">{feeder.name}</td>
+                    <td className="py-2 px-3 text-gray-600">{feeder.zone}</td>
+                    <td className="py-2 px-3 text-right font-semibold text-gray-900">{feeder.consumption_kwh.toLocaleString()} kWh</td>
+                    <td className="py-2 px-3 text-right text-gray-900">{feeder.uptime_hours}h</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+              {onlineFeeders.length > 5 && (
+                <button
+                  onClick={() => setShowAllOnline(!showAllOnline)}
+                  className="mt-3 text-sm font-medium text-green-600 hover:text-green-700 hover:underline mx-auto block"
+                >
+                  {showAllOnline
+                    ? "Show less"
+                    : `Show ${onlineFeeders.length - 5} more online feeders`}
+                </button>
+              )}
+          </div>
+        </div>
+
+        {offlineFeeders.length > 0 && (
+          <div>
+            <h4 className="font-semibold text-red-600 mb-3">❌ Offline Feeders ({offlineFeeders.length})</h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left py-2 px-3 font-semibold text-gray-900">Feeder</th>
+                    <th className="text-left py-2 px-3 font-semibold text-gray-900">Zone</th>
+                    <th className="text-left py-2 px-3 font-semibold text-gray-900">Station</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {offlineFeeders.map((feeder, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50">
+                      <td className="py-2 px-3 text-gray-900">{feeder.name}</td>
+                      <td className="py-2 px-3 text-gray-600">{feeder.zone}</td>
+                      <td className="py-2 px-3 text-gray-600">{feeder.station}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
